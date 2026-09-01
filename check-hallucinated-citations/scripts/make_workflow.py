@@ -67,10 +67,11 @@ const DIM7 = {
 const TOOL = `You can search and fetch the web. If WebSearch/WebFetch are unavailable, load them via ToolSearch (query "select:WebSearch,WebFetch"). If WebSearch is rate-limited/exhausted, fall back to WebFetch on direct URLs: arxiv.org/abs/<id>, export.arxiv.org/api/query?id_list=<id>, aclanthology.org, proceedings.neurips.cc, openreview.net, api.crossref.org/works?query.bibliographic=, api.openalex.org/works?filter=title.search:, api2.openreview.net/notes/search?term= . NEVER answer from training memory — model memory is unreliable about whether a specific citation exists.`
 
 function refBlock(r){return [
+ r.raw ? `- AS PRINTED IN THE PAPER (authoritative — the fields below are a best-effort parse of this string; if they disagree, trust this):\n    ${r.raw}` : '',
  `- cite key: ${r.key}`,`- entry type: ${r.type}`,`- title: ${r.title}`,`- authors: ${r.author}`,
  `- year: ${r.year}`,`- venue: ${r.venue || '(none)'}`,
  `- volume/number/pages: ${r.volume||'-'}/${r.number||'-'}/${r.pages||'-'}`,
- `- doi: ${r.doi||'(none)'}`,`- arxiv/eprint: ${r.eprint||'(none)'}`,`- url: ${r.url||'(none)'}`].join('\n')}
+ `- doi: ${r.doi||'(none)'}`,`- arxiv/eprint: ${r.eprint||'(none)'}`,`- url: ${r.url||'(none)'}`].filter(Boolean).join('\n')}
 
 function p1(r){return `You are a citation-integrity auditor. Verify ONE reference from a paper's bibliography: is it a real publication, and do its fields match reality?
 
@@ -220,7 +221,8 @@ return {
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('outdir', help='stage0.py 的输出目录（含 refs.json / stage0.json）')
+    ap.add_argument('outdir', help='stage0.py 的输出目录（含 refs.json / stage0.json）；用 --items 时可传任意占位')
+    ap.add_argument('--items', help='直接给预构建的 items JSON（PDF 回退路径用；含 raw/claims 字段）')
     ap.add_argument('-o', '--out', default='run.js')
     ap.add_argument('--keys', help='只审这些 key（逗号分隔）；例如复审时只审新增的')
     ap.add_argument('--level', choices=['quick','standard','full'], default='full',
@@ -229,6 +231,28 @@ def main():
     ap.add_argument('--context', help='正文摘要，写进 dim7 prompt 让判断更准（如"本文提出 X 方法，研究 Y"）',
                     default='(not provided)')
     a = ap.parse_args()
+
+    if a.items:
+        items = json.load(open(a.items, encoding='utf-8'))
+        for it in items:
+            # 归一化：模板读 c.text；允许调用方用 snippet（PDF 路径常见）
+            it['claims'] = [{"file": c.get("file", "?"), "text": c.get("text") or c.get("snippet", "")}
+                            for c in (it.get('claims') or []) if (c.get("text") or c.get("snippet"))]
+        items.sort(key=lambda x: -len(x['claims']))
+        do7 = (a.level == 'full') and (not a.no_dim7) and any(i['claims'] for i in items)
+        js = (TPL.replace('__DATA__', json.dumps(items, ensure_ascii=False))
+                 .replace('__DO_DIM7__', 'true' if do7 else 'false')
+                 .replace('__LEVEL__', a.level)
+                 .replace('__DIM7_PHASE__', "{ title: 'Dim7', detail: 'content-consistency vs the in-text claim' }," if do7 else '')
+                 .replace('__PAPER_CONTEXT__', a.context.replace('`', "'")))
+        open(a.out, 'w', encoding='utf-8').write(js)
+        n = len(items); n7 = sum(1 for i in items if i['claims'])
+        adv = 0 if a.level == 'quick' else n
+        est = n + adv + (n7 if do7 else 0)
+        print(f"已写出 {a.out}\n  档位 {a.level}；条目 {n}；带上下文 {n7}；dim7 {'开' if do7 else '关'}")
+        print(f"  agent 数 ≈ {est}   tokens ≈ {est*15/10:.0f}–{est*30/10:.0f} 万")
+        print(f"\n下一步：Workflow({{scriptPath: '{os.path.abspath(a.out)}'}})")
+        return
 
     refs = json.load(open(os.path.join(a.outdir, 'refs.json'), encoding='utf-8'))
     s0 = json.load(open(os.path.join(a.outdir, 'stage0.json'), encoding='utf-8'))
