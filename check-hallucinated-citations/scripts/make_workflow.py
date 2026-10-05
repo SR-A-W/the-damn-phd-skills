@@ -149,6 +149,11 @@ CALIBRATION - this is where false alarms come from, read carefully:
   attributable assertion (introduced X / showed Y / reports number Z / is lossless) is not borne out.
 - Numbers, dataset names, "first to do X", and property words (lossless, training-free, zero-shot) deserve
   the most scrutiny.
+- NOVELTY / CHARACTERIZATION claims about the cited work ("X did not do Y", "none has studied Z", "X only does W")
+  must be checked against the FULL TEXT, not the abstract — abstracts routinely omit ablations and side results.
+  If you could only read the abstract, say so and prefer UNVERIFIABLE over SUPPORTED for such claims.
+
+OUTPUT: every field is required. If SUPPORTED, set problem to null and severity to "none"; evidence may be [].
 
 Return the structured result.`}
 
@@ -219,6 +224,21 @@ return {
 '''
 
 
+# 分阶段单价（万 token/agent），按 5 次真实运行反验标定：
+#   pLM 251 条(626万)、Path-Lock dims1-6(263万)、Path-Lock dim7(132万)、
+#   Path-Lock v2(213万)、Hybrid-Thinking run1(713万) —— 全部落在 [下限,上限] 内。
+# dim7 真读原文最贵（Hybrid-Thinking 实测 ≈7.6 万/agent）；2026 年等新文献占比高时偏上限。
+RATE = {"verify": (1.5, 4.0), "adversary": (2.5, 6.5), "dim7": (3.0, 8.0)}
+
+def estimate(n, n7, level, adv_rate_quick=0.05):
+    """返回 (agent 数, 下限万, 上限万)。quick 档只对非 REAL（约 5%）做 3 视角复核。"""
+    adv = n if level != 'quick' else int(round(n * adv_rate_quick * 3))
+    d7 = n7 if level == 'full' else 0
+    lo = n * RATE["verify"][0] + adv * RATE["adversary"][0] + d7 * RATE["dim7"][0]
+    hi = n * RATE["verify"][1] + adv * RATE["adversary"][1] + d7 * RATE["dim7"][1]
+    return n + adv + d7, lo, hi
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('outdir', help='stage0.py 的输出目录（含 refs.json / stage0.json）；用 --items 时可传任意占位')
@@ -247,10 +267,10 @@ def main():
                  .replace('__PAPER_CONTEXT__', a.context.replace('`', "'")))
         open(a.out, 'w', encoding='utf-8').write(js)
         n = len(items); n7 = sum(1 for i in items if i['claims'])
-        adv = 0 if a.level == 'quick' else n
-        est = n + adv + (n7 if do7 else 0)
         print(f"已写出 {a.out}\n  档位 {a.level}；条目 {n}；带上下文 {n7}；dim7 {'开' if do7 else '关'}")
-        print(f"  agent 数 ≈ {est}   tokens ≈ {est*15/10:.0f}–{est*30/10:.0f} 万")
+        for lv in ('quick', 'standard', 'full'):
+            ag, lo, hi = estimate(n, n7 if do7 or lv == 'full' else 0, lv)
+            print(f"  {'→' if lv == a.level else ' '} {lv:<8} ≈ {ag:>3} agents   {lo:.0f}–{hi:.0f} 万 token")
         print(f"\n下一步：Workflow({{scriptPath: '{os.path.abspath(a.out)}'}})")
         return
 
@@ -287,19 +307,13 @@ def main():
              .replace('__PAPER_CONTEXT__', a.context.replace('`', "'")))
     open(a.out, 'w', encoding='utf-8').write(js)
     n, n7 = len(items), sum(1 for i in items if i['claims'])
-    adv = 0 if a.level == 'quick' else n
-    est = n + adv + (n7 if do7 else 0)
-    tok_lo, tok_hi = est * 15, est * 30          # 千 token；按 4 组实测标定 1.5-3.0 万/agent（大批量有规模效应，偏下限）
     print(f"已写出 {a.out}")
     print(f"  档位 {a.level}；条目 {n} 条；带正文上下文 {n7} 条；dim7 {'开' if do7 else '关'}")
-    print(f"\n  ── 工作量与成本估算 ──")
-    print(f"  agent 数 ≈ {est}  (stage1 {n}"
-          + (f" + 对抗 ≥{adv}" if adv else " + 对抗 0（quick 档只复核可疑项）")
-          + (f" + dim7 {n7}" if do7 else "") + ")")
-    print(f"  tokens  ≈ {tok_lo/10:.0f}–{tok_hi/10:.0f} 万")
-    other = {'quick': ['standard', 'full'], 'standard': ['quick', 'full'], 'full': ['quick', 'standard']}[a.level]
-    print(f"  其它档位: " + " | ".join(
-        f"{lv}≈{(n + (0 if lv=='quick' else n) + (n7 if lv=='full' and n7 else 0))} agents" for lv in other))
+    print(f"\n  ── 工作量与成本估算（分阶段单价，5 次实测反验）──")
+    for lv in ('quick', 'standard', 'full'):
+        ag, lo, hi = estimate(n, n7, lv)
+        print(f"  {'→' if lv == a.level else ' '} {lv:<8} ≈ {ag:>3} agents   {lo:.0f}–{hi:.0f} 万 token")
+    print("  （新文献/2026 年条目占比高时偏上限；dim7 读原文最贵）")
     print(f"\n下一步：Workflow({{scriptPath: '{os.path.abspath(a.out)}'}})")
 
 

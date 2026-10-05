@@ -2,12 +2,13 @@
 
 (工作中积累的重要知识会记录在这里)
 
-## 维护对象（4 个 skill，项目根目录）
+## 维护对象（5 个 skill，项目根目录）
 
 - `check-hallucinated-citations/` — 参考文献幻觉核查。含 SKILL.md + scripts/（make_workflow.py, stage0.py）+ reference/pitfalls.md。7 个核查维度：1–6 抓"文献不存在类"，7 抓"文献真实但不支持论点"。git status 显示 pitfalls.md 和 make_workflow.py 有未提交改动（入职时已存在，非我所改）。
 - `graceful-self-citation/` — 优雅自引织入。只有 SKILL.md。增量模式（GSC-LEDGER 台账），Scholar 人物模式 / 单篇模式。
 - `paper-severe-issue-audit/` — 八类严重问题终审。只有 SKILL.md。regex 撒网 + 人工分诊。
 - `preprint-release/` — arXiv 上传包整理。只有 SKILL.md。8 步流程，副本隔离 + pdftotext diff=0 验收。
+- `conference-poster/` — 学术海报制作（2026-10-04 由用户以 zip 包交付入库）。SKILL.md（4 阶段：会议要求抓取 → 生图定版式[闸门 A] → python-pptx 构建+黄金清单自检 → 人改后增量迭代）+ references/（golden_checklist、imagegen_prompts、POSTER_STATE 模板、pptx recipes）+ scripts/（example_builder、example_incremental_edit、preview_poster）。状态持久化在论文仓的 POSTER_STATE.md。注意：其 preview_poster.py 硬编码 DejaVu 字体路径（HPC 场景假设），入库时未改。
 
 ## 反馈台账
 

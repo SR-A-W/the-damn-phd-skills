@@ -145,6 +145,24 @@ PDF 里换行断词写作 `xx-\nyy`，提取后要接回成 `xxyy`。但如果�
 只交 PDF 的场合，bib 改了但没重编 = 等于没改。
 → 在渲染出的 PDF 书目里直接 grep 新值（如 `Maziarz`）确认生效。
 
+
+### B11. 对"前作没做过 X"类论断，**只读摘要必漏**
+真实案例：论文写 "\citet{jaggi2026tying} … without a controlled ablation of the block layout"。
+自动化 dim7 只读了摘要（摘要把它写成纯压缩工作）→ 判 SUPPORTED。读正文才看到原话
+"Our work gives a controlled decomposition that varies group size, tying topology, expert granularity…"。
+→ 凡是**刻画前作做了/没做什么**的句子，必须读正文。
+
+### B12. 但别把"相关"说成"相同"，也别拿同期工作当问题
+同一案例里我一度列表写"Jaggi 已做 ✅"，把**相邻的设计要素**说成了**同一件事**，被作者正确指出：
+他们是在"专家参数与每 token 计算量都固定"下以层数换循环次数、且共享 router——Jaggi 并非如此。
+且 Jaggi 仅早 3 个月，属同期工作，**无需比较或超越**。
+→ 引用核查只管一件事：**对被引文献的描述是否准确**。重叠多少、谁先谁后是审稿人的事，不是引用真实性问题。
+修法应是"改准那一句描述、直接写出真实区别"，而不是"重新定位贡献"。
+
+### C4. 绝不凭记忆猜 arXiv 号 / Anthology 编号
+两次踩坑：猜 Findings 编号猜错；凭印象把 MiniCPM 当成 2404.14219（实为 Phi-3）。
+→ **定位符一律从 bib 的 eprint/url/doi 字段取**，没有就走检索 API，不要自己拼。
+
 ---
 
 ## C. 可靠的查证源与技巧
